@@ -98,7 +98,9 @@ def upgrade() -> None:
         "chunks",
         ["is_edited"],
         unique=False,
+        if_not_exists=True,
     )
+
 
 
 def downgrade() -> None:
