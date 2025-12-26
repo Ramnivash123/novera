@@ -1,4 +1,6 @@
+############################
 # Development stage
+############################
 FROM python:3.11-slim AS development
 
 RUN apt-get update && apt-get install -y \
@@ -20,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
+# IMPORTANT: backend becomes app root
 WORKDIR /app
 
 # Install Python dependencies
@@ -27,21 +30,22 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy backend source code ONLY
+COPY backend/ .
 
 # Create necessary directories
 RUN mkdir -p data/uploads data/processed logs
 
 EXPOSE 8000
 
-# Development command (will be overridden by docker-compose)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
+
+############################
 # Production stage
+############################
 FROM python:3.11-slim AS production
 
-# Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     postgresql-client \
     libpq5 \
@@ -59,15 +63,14 @@ RUN useradd -m -u 1000 appuser
 
 WORKDIR /app
 
-# Copy Python packages from development stage
+# Copy installed Python packages
 COPY --from=development /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=development /usr/local/bin /usr/local/bin
 
-# Copy application
-COPY --chown=appuser:appuser . .
+# Copy backend app only
+COPY --from=development /app /app
 
-RUN mkdir -p data/uploads data/processed logs && \
-    chown -R appuser:appuser data logs
+RUN chown -R appuser:appuser /app
 
 USER appuser
 
