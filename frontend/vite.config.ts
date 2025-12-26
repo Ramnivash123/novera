@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 
 export default defineConfig({
+  base: '/static/',   // 🔥 REQUIRED
   plugins: [react()],
   resolve: {
     alias: {
@@ -15,6 +16,5 @@ export default defineConfig({
     watch: {
       usePolling: true,
     },
-    // Remove the proxy since we're using direct URLs
-  }, 
+  },
 })
