@@ -2,10 +2,14 @@
 FROM python:3.11-slim AS development
 
 RUN apt-get update && apt-get install -y \
+    build-essential \
     gcc \
     g++ \
-    postgresql-client \
+    python3-dev \
     libpq-dev \
+    libffi-dev \
+    libssl-dev \
+    libpoppler-cpp-dev \
     poppler-utils \
     tesseract-ocr \
     libgl1 \
