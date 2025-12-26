@@ -5,7 +5,7 @@ Configures routes, middleware, and application lifecycle events.
 
 from contextlib import asynccontextmanager
 import sys
-import os
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -63,33 +63,22 @@ async def lifespan(app: FastAPI):
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"Debug mode: {settings.debug}")
 
-    try:
-        await init_db()
-        logger.info("✅ Database initialized")
-        logger.info("🎉 Application startup complete!")
-    except Exception as e:
-        logger.error(f"❌ Startup failed: {str(e)}")
-        raise
+    await init_db()
+    logger.info("✅ Database initialized")
 
     yield
 
-    logger.info("🛑 Shutting down Mentanova AI Knowledge Assistant...")
-
-    try:
-        await close_db()
-        logger.info("✅ Database connections closed")
-        logger.info("👋 Shutdown complete")
-    except Exception as e:
-        logger.error(f"❌ Shutdown error: {str(e)}")
+    await close_db()
+    logger.info("🛑 Application shutdown complete")
 
 
 # -------------------------------------------------------------------
-# FastAPI application
+# FastAPI app
 # -------------------------------------------------------------------
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
-    description="AI-powered knowledge assistant with RAG capabilities for finance and HRMS documentation",
+    description="AI-powered knowledge assistant with RAG capabilities",
     docs_url="/api/docs" if settings.debug else None,
     redoc_url="/api/redoc" if settings.debug else None,
     openapi_url="/api/openapi.json" if settings.debug else None,
@@ -106,14 +95,13 @@ app.add_middleware(
     allow_credentials=settings.cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 # -------------------------------------------------------------------
-# API Routers (VERSIONED)
+# API Routers
 # -------------------------------------------------------------------
 API_PREFIX = settings.api_v1_prefix
 
@@ -129,19 +117,26 @@ app.include_router(admin_router, prefix=API_PREFIX, tags=["Admin"])
 # -------------------------------------------------------------------
 # Frontend (Vite build)
 # -------------------------------------------------------------------
-FRONTEND_DIR = "backend/static"
-INDEX_FILE = os.path.join(FRONTEND_DIR, "index.html")
+BASE_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = BASE_DIR / "static"
+INDEX_FILE = FRONTEND_DIR / "index.html"
 
-if os.path.exists(FRONTEND_DIR):
-    # Serve frontend + assets at ROOT
+if FRONTEND_DIR.exists():
+    # Serve JS, CSS, images
     app.mount(
-        "/",
-        StaticFiles(directory=FRONTEND_DIR, html=True),
-        name="frontend",
+        "/static",
+        StaticFiles(directory=FRONTEND_DIR),
+        name="static",
     )
 
 
-# SPA fallback (React Router / Vue Router support)
+# Serve root
+@app.get("/", include_in_schema=False)
+async def serve_frontend():
+    return FileResponse(INDEX_FILE)
+
+
+# SPA fallback (React Router)
 @app.get("/{full_path:path}", include_in_schema=False)
 async def spa_fallback(full_path: str):
     if full_path.startswith("api"):
@@ -162,7 +157,7 @@ async def global_exception_handler(request, exc):
 
 
 # -------------------------------------------------------------------
-# Local development entry
+# Local dev entry
 # -------------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
